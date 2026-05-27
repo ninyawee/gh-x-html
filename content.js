@@ -228,6 +228,11 @@
 
   // ---------- media rewrite ----------
 
+  // Render the <video>/<audio> inside a chrome-extension:// iframe rather
+  // than in place. GitHub's page CSP `media-src` only allows
+  // github.com/*.githubusercontent.com, so an in-page <video src=https://r2.dev/...>
+  // would be refused by the browser. The iframe escapes that inherited CSP
+  // for the same reason fences do — see ADR 0002 and render.js applyMedia.
   function rewriteMedia(node, url) {
     if (node.hasAttribute(APPLIED)) return;
     if (isUserAttachmentsUrl(url)) {
@@ -244,31 +249,31 @@
     if (!MEDIA_EXTS.includes(ext)) return;
 
     const tag = VIDEO_EXTS.includes(ext) ? "video" : "audio";
-    const media = document.createElement(tag);
-    media.setAttribute("controls", "");
-    if (tag === "video") media.setAttribute("preload", "metadata");
-    media.setAttribute("src", url);
-    media.style.cssText =
-      tag === "video"
-        ? "max-width: 100%; display: block; margin: .25rem 0;"
-        : "display: block; margin: .25rem 0;";
-    media.dataset.ghXHtml = `media-${tag}`;
+    const text = node.tagName === "IMG" ? (node.alt || url) : (node.textContent || url);
 
-    // Preserve the original href as a fallback "open in new tab" link below the player.
-    const fallback = document.createElement("a");
-    fallback.href = url;
-    fallback.textContent = node.tagName === "IMG" ? (node.alt || url) : (node.textContent || url);
-    fallback.target = "_blank";
-    fallback.rel = "noopener";
-    fallback.style.cssText = "font-size: .85em; color: var(--fgColor-muted, #57606a); display: inline-block; margin-bottom: .25rem;";
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute(
+      "sandbox",
+      "allow-scripts allow-popups allow-popups-to-escape-sandbox",
+    );
+    iframe.style.cssText =
+      `width: 100%; border: 0; display: block; height: ${tag === "video" ? 240 : 80}px; background: transparent;`;
+    iframe.src = chrome.runtime.getURL("render.html");
+    iframe.dataset.ghXHtml = `media-${tag}`;
 
-    const wrap = document.createElement("span");
-    wrap.dataset.ghXHtmlWrap = "1";
-    wrap.style.cssText = "display: block;";
-    wrap.appendChild(media);
-    wrap.appendChild(fallback);
+    const onReady = (e) => {
+      if (e.source !== iframe.contentWindow) return;
+      if (!e.data || e.data.type !== "gh-x-html:ready") return;
+      iframe.contentWindow.postMessage(
+        { type: "gh-x-html:render", media: { tag, src: url, text } },
+        "*",
+      );
+      window.removeEventListener("message", onReady);
+    };
+    window.addEventListener("message", onReady);
 
-    node.replaceWith(wrap);
+    node.replaceWith(iframe);
+    iframeByWindow.set(iframe.contentWindow, iframe);
   }
 
   // ---------- scan + observe ----------
