@@ -1,7 +1,10 @@
 #!/usr/bin/env -S bunx --bun playwright
 // Smoke test: load the unpacked extension in a fresh Chromium, pre-seed
-// the allowlist with @ninyawee, navigate to the test issue, assert the
-// x-html fence got rewritten into a sandboxed iframe.
+// the allowlist with @ninyawee, navigate to the test issue, assert
+//   1. the x-html fence got rewritten into a sandboxed iframe, and
+//   2. synthetic .mp4 <img> / <a> injected into a .markdown-body get
+//      rewritten into <video controls> wrapped in a single span (NO
+//      runaway re-wrapping of the fallback anchor).
 //
 // Usage:
 //   bunx --bun playwright install chromium   (once)
@@ -119,6 +122,116 @@ if (summary.iframeCount === 0) {
     exitCode = 1;
   } else {
     console.error("\nPASS: fence rewritten, sandbox correct");
+  }
+}
+
+// ---- Media-rewrite check ----
+// Inject a synthetic <img src=".mp4"> and <a href=".mp4"> into the existing
+// .markdown-body and confirm the rewriter swaps each for exactly ONE
+// chrome-extension:// iframe (data-gh-x-html='media-video'). The iframe
+// payload arrives via postMessage; the <video controls> ends up inside the
+// iframe's document, where the extension page's CSP — not GitHub's — applies
+// and 3rd-party media URLs can actually fetch.
+const MEDIA_URL =
+  "https://pub-d14e28f843ee45049d1467c3f279ed4b.r2.dev/permanent/ninyawee/gh-x-html/2026/05/845c3a7f-gh-x-html-smoke-clip.mp4";
+
+const mediaSummary = await page.evaluate(async (url) => {
+  const mb = document.querySelector(".markdown-body");
+  if (!mb) return { error: "no .markdown-body in fixture" };
+
+  const img = document.createElement("img");
+  img.src = url;
+  img.alt = "synthetic test img";
+  img.id = "ghxhtml-smoke-img";
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.textContent = "synthetic test anchor";
+  a.id = "ghxhtml-smoke-anchor";
+
+  const p = document.createElement("p");
+  p.id = "ghxhtml-smoke-container";
+  p.appendChild(img);
+  p.appendChild(document.createElement("br"));
+  p.appendChild(a);
+  mb.appendChild(p);
+
+  // Let the MutationObserver fire and the iframe handshake settle. Any
+  // re-entry regression would produce more than two iframes in this window.
+  await new Promise((r) => setTimeout(r, 1200));
+
+  const container = document.getElementById("ghxhtml-smoke-container");
+  const mediaIframes = container?.querySelectorAll("iframe[data-gh-x-html^='media-']") || [];
+
+  return {
+    originalImgGone: !document.getElementById("ghxhtml-smoke-img"),
+    originalAnchorGone: !document.getElementById("ghxhtml-smoke-anchor"),
+    mediaIframeCount: mediaIframes.length,
+    firstIframeSrc: mediaIframes[0]?.getAttribute("src") || null,
+    firstIframeSandbox: mediaIframes[0]?.getAttribute("sandbox") || null,
+    firstIframeDataKind: mediaIframes[0]?.getAttribute("data-gh-x-html") || null,
+  };
+}, MEDIA_URL);
+
+console.log("media:", JSON.stringify(mediaSummary, null, 2));
+
+if (mediaSummary.error) {
+  console.error(`\nFAIL: media probe — ${mediaSummary.error}`);
+  exitCode = 1;
+} else if (!mediaSummary.originalImgGone || !mediaSummary.originalAnchorGone) {
+  console.error("\nFAIL: media — original <img>/<a> still in DOM (rewriter didn't fire)");
+  exitCode = 1;
+} else if (mediaSummary.mediaIframeCount !== 2) {
+  console.error(`\nFAIL: media — expected 2 media iframes, got ${mediaSummary.mediaIframeCount}`);
+  exitCode = 1;
+} else if (!mediaSummary.firstIframeSrc?.startsWith("chrome-extension://")) {
+  console.error(`\nFAIL: media — iframe src is not chrome-extension:// (got ${mediaSummary.firstIframeSrc})`);
+  exitCode = 1;
+} else if ((mediaSummary.firstIframeSandbox || "").includes("allow-same-origin")) {
+  console.error("\nFAIL: media — iframe carries allow-same-origin (sandbox escape!)");
+  exitCode = 1;
+} else {
+  console.error("PASS: media — img + anchor each replaced by one sandboxed chrome-extension iframe");
+}
+
+// Drill into one media iframe and check that <video> got mounted with the
+// correct src and that the inner document is loaded from chrome-extension://.
+// This is the actual proof that CSP escape worked end-to-end.
+const innerFrame = page
+  .frames()
+  .find((f) => f.url().startsWith("chrome-extension://") && f.url().endsWith("/render.html"));
+if (innerFrame) {
+  // Find the media frame whose first <video> matches our URL.
+  const mediaFrames = page
+    .frames()
+    .filter((f) => f.url().startsWith("chrome-extension://") && f.url().endsWith("/render.html"));
+  let videoSummary = null;
+  for (const f of mediaFrames) {
+    const got = await f.evaluate((wantedSrc) => {
+      const v = document.querySelector("video, audio");
+      if (!v) return null;
+      const src = v.getAttribute("src");
+      if (src !== wantedSrc) return null;
+      return {
+        tag: v.tagName,
+        src,
+        hasControls: v.hasAttribute("controls"),
+      };
+    }, MEDIA_URL);
+    if (got) {
+      videoSummary = got;
+      break;
+    }
+  }
+  console.log("inner-frame:", JSON.stringify(videoSummary, null, 2));
+  if (!videoSummary) {
+    console.error("\nFAIL: media — no <video> with expected src found inside any chrome-extension iframe");
+    exitCode = 1;
+  } else if (!videoSummary.hasControls) {
+    console.error("\nFAIL: media — inner <video> missing controls attribute");
+    exitCode = 1;
+  } else {
+    console.error("PASS: media — inner <video controls> mounted in chrome-extension iframe with correct src");
   }
 }
 
