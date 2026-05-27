@@ -83,11 +83,18 @@
     ".js-timeline-item",
     ".discussion-timeline-item",
   ].join(", ");
+  // BODY_SELECTOR matches only the rendered-markdown content area, NOT
+  // header/footer chrome. We deliberately do NOT include `[data-testid="issue-body"]`
+  // — that testid wraps both the comment header AND the markdown body in the
+  // new UI, so closest() against it would falsely reject a header-author link.
+  // The data-testid$="-header-author" filter is itself the primary security
+  // boundary (mentions in user markdown can never carry that testid because
+  // GitHub strips data-* attributes from user content); BODY_SELECTOR is
+  // defense-in-depth for the legacy UI's hovercard-on-mention case.
   const BODY_SELECTOR = [
     ".markdown-body",
     ".comment-body",
     ".js-comment-body",
-    '[data-testid="issue-body"]',
     '[data-testid="markdown-body"]',
   ].join(", ");
 
