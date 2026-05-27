@@ -30,11 +30,14 @@
 
   async function loadAllowlist() {
     const { trustedAuthors: stored } = await chrome.storage.sync.get("trustedAuthors");
-    if (Array.isArray(stored)) {
+    if (Array.isArray(stored) && stored.length > 0) {
       trustedAuthors = new Set(stored);
       return;
     }
-    // First run: seed with self if we can detect it.
+    // First run OR list is empty — seed with self if we can detect it.
+    // An empty list almost certainly means the popup ran on a non-GitHub tab
+    // (no meta[name="user-login"] available) and saved []. The content script
+    // is the right place to do the seed because it always runs on github.com.
     if (selfLogin) {
       trustedAuthors = new Set([selfLogin]);
       await chrome.storage.sync.set({ trustedAuthors: [selfLogin] });
