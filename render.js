@@ -56,10 +56,13 @@
     media.setAttribute("controls", "");
     media.setAttribute("src", src);
     if (tag === "video") media.setAttribute("preload", "metadata");
+    // width:100% / height:auto so the video fills the iframe horizontally and
+    // its natural aspect drives the iframe's height (computed by the parent
+    // from the natural dims we post in `gh-x-html:resize`).
     media.style.cssText =
       tag === "video"
-        ? "max-width: 100%; display: block; margin: 0;"
-        : "display: block; margin: 0;";
+        ? "width: 100%; height: auto; display: block; margin: 0;"
+        : "display: block; margin: 0; width: 100%;";
 
     // "Open in new tab" fallback so the URL is still recoverable if playback
     // fails or the user wants to download. allow-popups-to-escape-sandbox on
@@ -75,10 +78,21 @@
     document.body.appendChild(media);
     document.body.appendChild(fallback);
 
-    const send = () => postHeight();
-    send();
-    if (tag === "video") media.addEventListener("loadedmetadata", send);
-    if (window.ResizeObserver) new ResizeObserver(send).observe(document.body);
+    const sendMedia = () => {
+      const h = Math.max(
+        document.documentElement.scrollHeight,
+        document.body ? document.body.scrollHeight : 0,
+      );
+      const naturalW = tag === "video" ? media.videoWidth || 0 : 0;
+      const naturalH = tag === "video" ? media.videoHeight || 0 : 0;
+      parent.postMessage(
+        { type: "gh-x-html:resize", height: h, naturalW, naturalH },
+        "*",
+      );
+    };
+    sendMedia();
+    if (tag === "video") media.addEventListener("loadedmetadata", sendMedia);
+    if (window.ResizeObserver) new ResizeObserver(sendMedia).observe(document.body);
   }
 
   window.addEventListener("message", (e) => {

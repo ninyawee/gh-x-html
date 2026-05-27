@@ -167,6 +167,32 @@
     }
   }
 
+  // GitHub routes every external image referenced via `![alt](url)` through
+  // their Camo proxy: the rendered <a href> and inner <img src> both point at
+  // `camo.githubusercontent.com/<sha>/<hex>` where <hex> is the original URL
+  // hex-encoded. Plain anchor links `[text](url)` are NOT proxied.
+  //
+  // Without decoding, extOf("camo.../abc/68747470...") yields nothing useful
+  // and the .mp4 detection silently misses every image-syntax media URL.
+  function decodeCamoUrl(url) {
+    if (!url) return null;
+    try {
+      const u = new URL(url, location.href);
+      if (u.hostname !== "camo.githubusercontent.com") return null;
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (parts.length < 2) return null;
+      const hex = parts[1];
+      if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2 !== 0) return null;
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+      }
+      return new TextDecoder().decode(bytes);
+    } catch {
+      return null;
+    }
+  }
+
   // ---------- fence rewrite ----------
 
   function rewriteFence(pre) {
@@ -292,16 +318,24 @@
       if (pre) rewriteFence(pre);
     });
 
-    // Media-URL: img[src] inside markdown-rendered comment bodies.
-    root.querySelectorAll(`.markdown-body img[src]:not([${APPLIED}])`).forEach((img) => {
-      const src = img.getAttribute("src");
-      if (src && MEDIA_EXTS.includes(extOf(src))) rewriteMedia(img, src);
-    });
-
-    // Media-URL: a[href] inside markdown-rendered comment bodies.
+    // Media-URL: anchors first. GitHub renders `![alt](url)` as
+    // `<a href=camo><img src=camo></a>` — both pointing at the proxy. The
+    // outer <a> match below also clears the inner <img>, so scanning
+    // anchors before imgs avoids briefly creating an orphan inner iframe.
     root.querySelectorAll(`.markdown-body a[href]:not([${APPLIED}])`).forEach((a) => {
       const href = a.getAttribute("href");
-      if (href && MEDIA_EXTS.includes(extOf(href))) rewriteMedia(a, href);
+      const decoded = decodeCamoUrl(href);
+      const target = decoded || href;
+      if (target && MEDIA_EXTS.includes(extOf(target))) rewriteMedia(a, target);
+    });
+
+    // Media-URL: img[src] inside markdown-rendered comment bodies — for the
+    // unwrapped case (e.g. an <img> emitted directly by a custom renderer).
+    root.querySelectorAll(`.markdown-body img[src]:not([${APPLIED}])`).forEach((img) => {
+      const src = img.getAttribute("src");
+      const decoded = decodeCamoUrl(src);
+      const target = decoded || src;
+      if (target && MEDIA_EXTS.includes(extOf(target))) rewriteMedia(img, target);
     });
   }
 
@@ -341,6 +375,20 @@
     if (!data || data.type !== "gh-x-html:resize") return;
     const iframe = iframeByWindow.get(e.source);
     if (!iframe) return;
+
+    // Media-video: let the natural aspect ratio drive height instead of a
+    // fixed pixel value. Otherwise a 320×180 clip inside a 800px-wide iframe
+    // leaves ~480px of whitespace below the player. max-width pins the iframe
+    // to the video's natural width so small clips don't stretch up.
+    const naturalW = Number(data.naturalW) || 0;
+    const naturalH = Number(data.naturalH) || 0;
+    if (iframe.dataset.ghXHtml === "media-video" && naturalW > 0 && naturalH > 0) {
+      iframe.style.aspectRatio = `${naturalW} / ${naturalH}`;
+      iframe.style.maxWidth = `${naturalW}px`;
+      iframe.style.height = "auto";
+      return;
+    }
+
     const h = Math.max(IFRAME_HEIGHT_MIN, Math.min(IFRAME_HEIGHT_MAX, Number(data.height) || 0));
     if (h > 0) iframe.style.height = `${h}px`;
   });
