@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "gh-x-html",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "Rewrites allowlisted links inside GitHub issue/PR/discussion comments into inline <video>, <audio>, or sandboxed <iframe> players.",
   "permissions": ["storage", "scripting", "activeTab"],
   "host_permissions": ["https://github.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "gh-x-html allowlist",
@@ -26,6 +30,12 @@
       "matches": ["https://github.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["render.html", "render.js"],
+      "matches": ["https://github.com/*"]
     }
   ]
 }

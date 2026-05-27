@@ -186,11 +186,34 @@
       "sandbox",
       "allow-scripts allow-popups allow-popups-to-escape-sandbox",
     );
-    iframe.setAttribute("loading", "lazy");
     iframe.style.cssText =
       "width: 100%; border: 0; display: block; height: 200px; background: transparent;";
-    iframe.srcdoc = withResizer(source);
+
+    // IMPORTANT: srcdoc / blob: / data: URLs all inherit the embedding
+    // document's CSP in Chrome. GitHub's page CSP is
+    // `script-src github.githubassets.com` (no inline, no predictable
+    // nonce), which blocks our resizer script and any author scripts.
+    //
+    // Navigating the iframe to a real chrome-extension:// URL escapes that
+    // inheritance — the document loaded from chrome-extension://EXT_ID/
+    // gets its own origin and the inherited CSP no longer applies. The
+    // author's HTML is then forwarded into the render frame via
+    // postMessage. See render.html / render.js.
+    iframe.src = chrome.runtime.getURL("render.html");
     iframe.dataset.ghXHtml = "fence";
+
+    // Send the author's HTML once the render frame signals it's ready.
+    // The render frame posts {type:'gh-x-html:ready'} on load.
+    const onReady = (e) => {
+      if (e.source !== iframe.contentWindow) return;
+      if (!e.data || e.data.type !== "gh-x-html:ready") return;
+      iframe.contentWindow.postMessage(
+        { type: "gh-x-html:render", html: source },
+        "*",
+      );
+      window.removeEventListener("message", onReady);
+    };
+    window.addEventListener("message", onReady);
 
     // GitHub wraps fences in <div class="snippet-clipboard-content"> with a
     // floating copy button. Replace the whole wrapper if present, otherwise
@@ -200,35 +223,8 @@
     iframeByWindow.set(iframe.contentWindow, iframe);
   }
 
-  function withResizer(html) {
-    // Injected at end of <body>. Posts height to parent on load + on body resize.
-    // Caller is responsible for the srcdoc being a complete document — but we
-    // also tolerate fragments by wrapping when there's no <html> root.
-    const resizer = `<script>(function(){
-      function send(){
-        var h = Math.max(
-          document.documentElement.scrollHeight,
-          document.body ? document.body.scrollHeight : 0
-        );
-        parent.postMessage({type:'gh-x-html:resize', height: h}, '*');
-      }
-      window.addEventListener('load', send);
-      if (window.ResizeObserver && document.body) {
-        new ResizeObserver(send).observe(document.body);
-      } else {
-        setTimeout(send, 200);
-      }
-    })();<\/script>`;
-
-    if (/<\/body\s*>/i.test(html)) {
-      return html.replace(/<\/body\s*>/i, `${resizer}</body>`);
-    }
-    if (/<\/html\s*>/i.test(html)) {
-      return html.replace(/<\/html\s*>/i, `${resizer}</html>`);
-    }
-    // Fragment: wrap so resize hook runs.
-    return `<!doctype html><html><head><meta charset="utf-8"></head><body>${html}${resizer}</body></html>`;
-  }
+  // Resizer logic now lives in render.js (loaded inside the chrome-extension://
+  // render frame, where GitHub's CSP doesn't apply).
 
   // ---------- media rewrite ----------
 
