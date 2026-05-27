@@ -235,6 +235,104 @@ if (innerFrame) {
   }
 }
 
+// ---- Camo-decoding check ----
+// GitHub routes `![alt](url)` through camo.githubusercontent.com — the <a>
+// and inner <img> both point at `camo.../<sha>/<hex>` where <hex> is the
+// original URL hex-encoded. Without decoding, extOf misses the .mp4
+// signal and the image-syntax case stays broken.
+const camoSummary = await page.evaluate(async (url) => {
+  const mb = document.querySelector(".markdown-body");
+  if (!mb) return { error: "no .markdown-body in fixture" };
+
+  // Build a plausible camo URL from the test URL — same encoding GitHub uses.
+  const hex = [...new TextEncoder().encode(url)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const camoUrl = `https://camo.githubusercontent.com/abc123def456/${hex}`;
+
+  // Mirror GitHub's wrapping shape: <a href=camo><img src=camo /></a>
+  const img = document.createElement("img");
+  img.src = camoUrl;
+  img.alt = "camo test img";
+  img.id = "ghxhtml-camo-img";
+
+  const a = document.createElement("a");
+  a.href = camoUrl;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer nofollow";
+  a.appendChild(img);
+  a.id = "ghxhtml-camo-anchor";
+
+  const p = document.createElement("p");
+  p.id = "ghxhtml-camo-container";
+  p.appendChild(a);
+  mb.appendChild(p);
+
+  await new Promise((r) => setTimeout(r, 1200));
+
+  const container = document.getElementById("ghxhtml-camo-container");
+  const mediaIframes = container?.querySelectorAll("iframe[data-gh-x-html^='media-']") || [];
+  return {
+    originalImgGone: !document.getElementById("ghxhtml-camo-img"),
+    originalAnchorGone: !document.getElementById("ghxhtml-camo-anchor"),
+    mediaIframeCount: mediaIframes.length,
+    camoUrl,
+  };
+}, MEDIA_URL);
+
+console.log("camo:", JSON.stringify(camoSummary, null, 2));
+
+if (camoSummary.error) {
+  console.error(`\nFAIL: camo probe — ${camoSummary.error}`);
+  exitCode = 1;
+} else if (!camoSummary.originalAnchorGone) {
+  console.error("\nFAIL: camo — wrapper <a href=camo> still present (decoder didn't fire)");
+  exitCode = 1;
+} else if (camoSummary.mediaIframeCount !== 1) {
+  console.error(`\nFAIL: camo — expected 1 media iframe for the wrapped <a><img>, got ${camoSummary.mediaIframeCount}`);
+  exitCode = 1;
+} else {
+  console.error("PASS: camo — wrapped <a href=camo><img src=camo></a> decoded and replaced by 1 media iframe");
+}
+
+// ---- Aspect-ratio sizing check ----
+// After loadedmetadata fires inside the iframe, the parent should size the
+// iframe via aspect-ratio + max-width rather than a fixed pixel height, so
+// the player snaps to the video's natural aspect instead of leaving a
+// whitespace strip below the controls.
+await page.waitForFunction(
+  () => {
+    const f = document.querySelector("iframe[data-gh-x-html='media-video']");
+    return f && f.style.aspectRatio && f.style.aspectRatio !== "auto";
+  },
+  { timeout: 8_000 },
+).catch(() => null);
+
+const sizingSummary = await page.evaluate(() => {
+  const f = document.querySelector("iframe[data-gh-x-html='media-video']");
+  if (!f) return { error: "no media-video iframe" };
+  return {
+    aspectRatio: f.style.aspectRatio || null,
+    maxWidth: f.style.maxWidth || null,
+    inlineHeight: f.style.height || null,
+  };
+});
+
+console.log("sizing:", JSON.stringify(sizingSummary, null, 2));
+
+if (sizingSummary.error) {
+  console.error(`\nFAIL: sizing — ${sizingSummary.error}`);
+  exitCode = 1;
+} else if (!sizingSummary.aspectRatio) {
+  console.error("\nFAIL: sizing — iframe has no aspect-ratio (whitespace bug regression?)");
+  exitCode = 1;
+} else if (!sizingSummary.maxWidth) {
+  console.error("\nFAIL: sizing — iframe has no max-width cap (small clips will upscale)");
+  exitCode = 1;
+} else {
+  console.error(`PASS: sizing — iframe aspect-ratio=${sizingSummary.aspectRatio} max-width=${sizingSummary.maxWidth}`);
+}
+
 // Screenshot the iframe area for visual confirmation.
 if (iframeHandle) {
   const shot = "/tmp/gh-x-html-smoke.png";
