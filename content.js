@@ -127,12 +127,12 @@
 
   // ---------- fence rewrite ----------
 
-  function rewriteFence(code) {
-    if (code.hasAttribute(APPLIED)) return;
-    const pre = code.closest("pre") || code.parentElement;
-    if (!pre) return;
+  function rewriteFence(pre) {
+    if (pre.hasAttribute(APPLIED)) return;
+    const code = pre.querySelector("code");
+    if (!code) return;
     if (!isTrusted(pre)) {
-      code.setAttribute(APPLIED, "skipped");
+      pre.setAttribute(APPLIED, "skipped");
       return;
     }
 
@@ -148,7 +148,11 @@
     iframe.srcdoc = withResizer(source);
     iframe.dataset.ghXHtml = "fence";
 
-    pre.replaceWith(iframe);
+    // GitHub wraps fences in <div class="snippet-clipboard-content"> with a
+    // floating copy button. Replace the whole wrapper if present, otherwise
+    // just the <pre>.
+    const wrapper = pre.closest(".snippet-clipboard-content") || pre;
+    wrapper.replaceWith(iframe);
     iframeByWindow.set(iframe.contentWindow, iframe);
   }
 
@@ -228,15 +232,18 @@
   // ---------- scan + observe ----------
 
   function scan(root) {
-    // Fences
+    // Fences. GitHub renders unknown-language fences as <pre lang="x-html">
+    // with no language class on the inner <code>. Older surfaces wrap known
+    // languages in <div class="highlight-source-x-html">, so we cover both.
+    root.querySelectorAll(`pre[lang="x-html"]:not([${APPLIED}])`).forEach(rewriteFence);
     root.querySelectorAll(
-      `pre > code.language-x-html:not([${APPLIED}]), pre > code[class*="language-x-html"]:not([${APPLIED}])`,
+      `div.highlight-source-x-html pre:not([${APPLIED}])`,
     ).forEach(rewriteFence);
-
-    // Also catch x-html when rendered inside .highlight-source-x-html (rare).
-    root.querySelectorAll(`div.highlight-source-x-html pre code:not([${APPLIED}])`).forEach(
-      rewriteFence,
-    );
+    // Legacy fallback: language class on <code> directly.
+    root.querySelectorAll(`pre > code.language-x-html:not([${APPLIED}])`).forEach((code) => {
+      const pre = code.closest("pre");
+      if (pre) rewriteFence(pre);
+    });
 
     // Media-URL: img[src] inside markdown-rendered comment bodies.
     root.querySelectorAll(`.markdown-body img[src]:not([${APPLIED}])`).forEach((img) => {
