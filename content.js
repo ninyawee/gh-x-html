@@ -128,9 +128,13 @@
     return null;
   }
 
-  function isTrusted(node) {
+  // Trust check result is discriminated so callers can distinguish "author not
+  // yet detectable" (retry on later scan tick — React may still be hydrating)
+  // from "author detectable but not in allowlist" (permanent skip, mark applied).
+  function trustCheck(node) {
     const author = findCommentAuthor(node);
-    return author != null && trustedAuthors.has(author);
+    if (author == null) return { state: "pending" };
+    return { state: trustedAuthors.has(author) ? "trusted" : "untrusted", author };
   }
 
   function extOf(url) {
@@ -159,8 +163,10 @@
     if (pre.hasAttribute(APPLIED)) return;
     const code = pre.querySelector("code");
     if (!code) return;
-    if (!isTrusted(pre)) {
-      pre.setAttribute(APPLIED, "skipped");
+    const trust = trustCheck(pre);
+    if (trust.state === "pending") return; // retry on next scan tick
+    if (trust.state === "untrusted") {
+      pre.setAttribute(APPLIED, "untrusted");
       return;
     }
 
@@ -222,8 +228,10 @@
       node.setAttribute(APPLIED, "user-attachments");
       return;
     }
-    if (!isTrusted(node)) {
-      node.setAttribute(APPLIED, "skipped");
+    const trust = trustCheck(node);
+    if (trust.state === "pending") return; // retry on next scan tick
+    if (trust.state === "untrusted") {
+      node.setAttribute(APPLIED, "untrusted");
       return;
     }
     const ext = extOf(url);
