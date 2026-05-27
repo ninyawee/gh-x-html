@@ -56,24 +56,46 @@
     return meta?.content?.trim() || null;
   }
 
-  // GitHub uses many comment-container classes across surfaces. Walk up until we
-  // find an ancestor that exposes the author through one of the known shapes.
+  // Find the comment author from the nearest comment container.
+  //
+  // SECURITY: the author element must come from the comment header, NOT from
+  // anywhere inside .markdown-body / .comment-body. A naive descendant search
+  // over an ancestor that wraps both the header and the body would pick up
+  // @-mentions inside an attacker's comment — e.g. a hostile commenter typing
+  // "@trusted-user" creates a hovercard link in their markdown body that would
+  // otherwise be treated as the comment's author and bypass the allowlist.
+  //
+  // The fix: walk up to a known comment container, then scope author search to
+  // the container's descendants explicitly excluding the markdown/comment body.
+  const COMMENT_CONTAINER_SELECTOR = [
+    ".js-comment",
+    ".timeline-comment",
+    ".review-comment",
+    ".TimelineItem",
+    ".js-timeline-item",
+    ".discussion-timeline-item",
+  ].join(", ");
+  const BODY_SELECTOR = ".markdown-body, .comment-body, .js-comment-body";
+
   function findCommentAuthor(node) {
-    let el = node;
-    while (el && el !== document.body) {
-      const hover = el.querySelector?.(
-        'a[data-hovercard-type="user"], a.author, [data-author-login]',
-      );
-      if (hover) {
-        const fromAttr = hover.getAttribute("data-author-login");
-        if (fromAttr) return fromAttr.trim();
-        const url = hover.getAttribute("data-hovercard-url") || hover.getAttribute("href") || "";
-        const m = url.match(/^\/(?:users\/)?([A-Za-z0-9-]+)(?:\/|$)/);
-        if (m) return m[1];
-        const t = hover.textContent?.trim();
-        if (t) return t.replace(/^@/, "");
-      }
-      el = el.parentElement;
+    const container = node.closest?.(COMMENT_CONTAINER_SELECTOR);
+    if (!container) return null;
+
+    const candidates = container.querySelectorAll(
+      'a.author, a[data-hovercard-type="user"], [data-author-login]',
+    );
+    for (const link of candidates) {
+      // Skip @-mentions and any author-shaped element inside the comment body.
+      if (link.closest(BODY_SELECTOR)) continue;
+
+      const fromAttr = link.getAttribute("data-author-login");
+      if (fromAttr) return fromAttr.trim();
+      // Prefer hovercard URL — that's the canonical header form.
+      const url = link.getAttribute("data-hovercard-url") || link.getAttribute("href") || "";
+      const m = url.match(/^\/(?:users\/)?([A-Za-z0-9-]+)(?:\/|$)/);
+      if (m) return m[1];
+      const t = link.textContent?.trim();
+      if (t) return t.replace(/^@/, "");
     }
     return null;
   }
