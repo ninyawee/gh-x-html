@@ -10,3 +10,4 @@ Thumbs.db
 # Local dev — packaged builds
 *.zip
 *.crx
+.claude/
