@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>gh-x-html — trusted authors</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --chip-bg: #f6f8fa;
+    --chip-bg-self: #dbeafe;
+    --danger: #cf222e;
+    --accent: #0969da;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --border: #30363d;
+      --chip-bg: #161b22;
+      --chip-bg-self: #1f3a5f;
+      --accent: #58a6ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    width: 320px;
+    margin: 0;
+    padding: 14px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 13px; margin: 0 0 4px; }
+  .lede { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .row {
+    display: flex; gap: 6px; margin-bottom: 10px;
+  }
+  input[type="text"] {
+    flex: 1; min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
+  }
+  input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--chip-bg);
+    color: var(--fg);
+    cursor: pointer;
+    font: inherit;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  ul.authors {
+    list-style: none; padding: 0; margin: 0 0 10px;
+    border: 1px solid var(--border); border-radius: 6px; max-height: 240px; overflow-y: auto;
+  }
+  ul.authors:empty::before {
+    content: "No trusted authors yet.";
+    display: block; padding: 10px; color: var(--muted); text-align: center;
+  }
+  ul.authors li {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  ul.authors li:last-child { border-bottom: 0; }
+  ul.authors li .login { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  ul.authors li.is-self { background: var(--chip-bg-self); }
+  ul.authors li .badge {
+    font-size: 10px; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+  }
+  ul.authors li button.remove {
+    padding: 2px 6px; font-size: 11px; color: var(--danger);
+    border-color: transparent; background: transparent;
+  }
+  ul.authors li button.remove:hover { border-color: var(--danger); background: transparent; }
+  .footer { font-size: 11px; color: var(--muted); margin-top: 10px; }
+  .footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<h1>Trusted authors</h1>
+<p class="lede">Rich-content fences and media links from these GitHub users get rendered in your browser. Everyone else stays as plain text.</p>
+
+<form id="add-form" class="row" autocomplete="off">
+  <input type="text" id="login-input" placeholder="github-username" pattern="[A-Za-z0-9-]+" required />
+  <button type="submit" class="primary">Add</button>
+</form>
+
+<ul class="authors" id="authors"></ul>
+
+<div class="footer">
+  Stored in <code>chrome.storage.sync</code>. <a href="https://github.com/ninyawee/gh-x-html" target="_blank" rel="noopener">Docs</a>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

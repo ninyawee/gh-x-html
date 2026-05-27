@@ -1,0 +1,12 @@
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local dev — packaged builds
+*.zip
+*.crx
