@@ -7,7 +7,21 @@
 .DS_Store
 Thumbs.db
 
-# Local dev — packaged builds
+# Tooling / agent artefacts
+.claude/
+.playwright/
+node_modules/
+
+# Packaged builds — produced by scripts/build-zip.sh, never sources
+dist/
 *.zip
 *.crx
-.claude/
+*.pem
+
+# Store-asset working files (final assets stay in docs/store/)
+docs/store/concepts/
+docs/store/icon-1024.png
+docs/store/icon-flat-1024.png
+docs/store/icon-master.png
+docs/store/icon-square.png
+docs/store/icon-128-flat.png

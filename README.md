@@ -1,4 +1,15 @@
+<p align="center">
+  <img src="icons/icon-128.png" alt="gh-x-html icon" width="96" height="96" />
+</p>
+
 # gh-x-html
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/ninyawee/gh-x-html.svg" alt="License: MIT" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/ninyawee/gh-x-html?label=version" alt="Version" /></a>
+  <img src="https://img.shields.io/badge/manifest-v3-0969da" alt="Manifest V3" />
+  <img src="https://img.shields.io/badge/build-vanilla%20JS-22c55e" alt="No build step" />
+</p>
 
 > Make GitHub comments render rich HTML — your own ADR pages, status dashboards, inline videos — instead of getting flattened by the sanitizer.
 
@@ -7,7 +18,15 @@ A Chrome extension that rewrites two things inside GitHub issue / PR / discussio
 1. **Fenced code blocks tagged `x-html`** become a sandboxed iframe that renders the HTML inside.
 2. **Media links** (`.mp4`, `.webm`, `.mov`, `.mp3`, `.m4a`, `.ogg`) become inline `<video>` / `<audio>` players — works for `![](...)`, `[caption](...)`, and bare URLs.
 
+![Before and after — a fenced x-html block becomes a live chart + video card](docs/store/screenshot-1-before-after.png)
+
 ## Install
+
+### From the Chrome Web Store
+
+_Coming soon — listing in review._
+
+### From source (today)
 
 1. Clone or download this repo.
 2. Open `chrome://extensions` in Chrome / Edge / Brave / Arc / Vivaldi.
@@ -94,18 +113,41 @@ GitHub's markdown sanitizer strips `<video>`, `<iframe>`, `<style>` attributes, 
 
 ```
 manifest.json       — MV3 manifest, content-script on github.com/*, popup
+background.js       — service worker (storage seeding, badge state)
 content.js          — fence + media rewriter, MutationObserver, postMessage resizer
+render.html         — chrome-extension:// iframe shell that mounts fences / media
+render.js           — applies the fence or media payload inside the iframe
 popup.html          — trusted-authors editor UI
 popup.js            — chrome.storage.sync read/write
 icons/              — extension icons + source SVG
+smoke-test.mjs      — Playwright-driven end-to-end sanity check
+CHANGELOG.md        — release notes (Keep-a-Changelog format)
 CONTEXT.md          — glossary, scope, decisions
 docs/adr/           — architecture decision records
+docs/store/         — Chrome Web Store icons, promo tiles, screenshots
+scripts/build-zip.sh — packs the extension into dist/<name>-<version>.zip
 ```
+
+## Packaging for the Chrome Web Store
+
+```bash
+./scripts/build-zip.sh   # writes dist/gh-x-html-<version>.zip
+```
+
+The zip contains only the runtime files the extension needs — `icons/icon.svg`,
+`CONTEXT.md`, `docs/`, `smoke-test.mjs`, and the worktree clutter never end up
+inside it.
+
+Store-listing assets live under [`docs/store/`](docs/store/) — the 128 px icon,
+the 440 × 280 small tile, the 1400 × 560 marquee, and the 1280 × 800
+screenshots.
 
 ## Contributing
 
-This is a small, intentionally vanilla extension. No bundler, no TypeScript, no tests yet. PRs welcome — read `CONTEXT.md` and the ADRs first to stay aligned with the design.
+This is a small, intentionally vanilla extension. No bundler, no TypeScript.
+The one test, `smoke-test.mjs`, drives a real Chromium via Playwright. PRs
+welcome — read `CONTEXT.md` and the ADRs first to stay aligned with the design.
 
 ## License
 
-MIT.
+MIT — see [LICENSE](LICENSE).
