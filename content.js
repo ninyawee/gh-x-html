@@ -61,13 +61,21 @@
   // SECURITY: the author element must come from the comment header, NOT from
   // anywhere inside .markdown-body / .comment-body. A naive descendant search
   // over an ancestor that wraps both the header and the body would pick up
-  // @-mentions inside an attacker's comment — e.g. a hostile commenter typing
+  // @-mentions inside an attacker's comment — a hostile commenter typing
   // "@trusted-user" creates a hovercard link in their markdown body that would
   // otherwise be treated as the comment's author and bypass the allowlist.
   //
-  // The fix: walk up to a known comment container, then scope author search to
-  // the container's descendants explicitly excluding the markdown/comment body.
-  const COMMENT_CONTAINER_SELECTOR = [
+  // We support two UI generations:
+  //
+  //   1. New issue UI (React, CSS modules) — exposes a stable data-testid
+  //      ending in "-header-author". Walk up from the matched node and stop
+  //      at the nearest ancestor that contains such an element. That ancestor
+  //      is, by construction, the smallest comment container.
+  //
+  //   2. Legacy UI (classic timeline) — uses .js-comment / .timeline-comment
+  //      etc. Walk up to a container, then read a.author / hovercard link
+  //      from outside the markdown body.
+  const LEGACY_CONTAINER_SELECTOR = [
     ".js-comment",
     ".timeline-comment",
     ".review-comment",
@@ -75,27 +83,47 @@
     ".js-timeline-item",
     ".discussion-timeline-item",
   ].join(", ");
-  const BODY_SELECTOR = ".markdown-body, .comment-body, .js-comment-body";
+  const BODY_SELECTOR = [
+    ".markdown-body",
+    ".comment-body",
+    ".js-comment-body",
+    '[data-testid="issue-body"]',
+    '[data-testid="markdown-body"]',
+  ].join(", ");
+
+  function extractLogin(el) {
+    const fromAttr = el.getAttribute("data-author-login");
+    if (fromAttr) return fromAttr.trim();
+    const url = el.getAttribute("data-hovercard-url") || el.getAttribute("href") || "";
+    const m = url.match(/^(?:https?:\/\/github\.com)?\/(?:users\/)?([A-Za-z0-9-]+)(?:\/|$)/);
+    if (m) return m[1];
+    const t = el.textContent?.trim();
+    return t ? t.replace(/^@/, "") : null;
+  }
 
   function findCommentAuthor(node) {
-    const container = node.closest?.(COMMENT_CONTAINER_SELECTOR);
-    if (!container) return null;
+    // Pass 1 — new UI. Walk up; the smallest ancestor containing a
+    // -header-author link is the comment container by definition.
+    let el = node.parentElement;
+    while (el && el !== document.body) {
+      const headerAuthor = el.querySelector('a[data-testid$="-header-author"]');
+      if (headerAuthor && !headerAuthor.closest(BODY_SELECTOR)) {
+        const login = extractLogin(headerAuthor);
+        if (login) return login;
+      }
+      el = el.parentElement;
+    }
 
+    // Pass 2 — legacy UI fallback.
+    const container = node.closest?.(LEGACY_CONTAINER_SELECTOR);
+    if (!container) return null;
     const candidates = container.querySelectorAll(
       'a.author, a[data-hovercard-type="user"], [data-author-login]',
     );
     for (const link of candidates) {
-      // Skip @-mentions and any author-shaped element inside the comment body.
       if (link.closest(BODY_SELECTOR)) continue;
-
-      const fromAttr = link.getAttribute("data-author-login");
-      if (fromAttr) return fromAttr.trim();
-      // Prefer hovercard URL — that's the canonical header form.
-      const url = link.getAttribute("data-hovercard-url") || link.getAttribute("href") || "";
-      const m = url.match(/^\/(?:users\/)?([A-Za-z0-9-]+)(?:\/|$)/);
-      if (m) return m[1];
-      const t = link.textContent?.trim();
-      if (t) return t.replace(/^@/, "");
+      const login = extractLogin(link);
+      if (login) return login;
     }
     return null;
   }
