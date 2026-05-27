@@ -300,8 +300,14 @@
     });
   }
 
+  // Until loadAllowlist() resolves, trustedAuthors is an empty Set. If a scan
+  // ran during that window the author would be detected (React hydrates fast)
+  // but the empty Set would mark the fence APPLIED="untrusted", stamping it
+  // out of contention forever. Defer all scans until the allowlist is loaded.
+  let ready = false;
   let pending = false;
   function scheduleScan() {
+    if (!ready) return;
     if (pending) return;
     pending = true;
     requestAnimationFrame(() => {
@@ -336,5 +342,8 @@
 
   // ---------- bootstrap ----------
 
-  loadAllowlist().then(() => scan(document));
+  loadAllowlist().then(() => {
+    ready = true;
+    scan(document);
+  });
 })();
