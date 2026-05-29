@@ -1,9 +1,14 @@
 # Context — gh-x-html
 
-A Chrome extension that lets GitHub comments embed rich content via two independent rewrite paths:
+A Chrome extension that turns GitHub comments into a medium for **UI
+verification and rich-content review**: third-party video plays inline,
+Playwright HTML reports and other rich artifacts render live, and fenced
+HTML blocks become sandboxed iframes.
 
-1. **Fence path** — fenced code blocks tagged `x-html` are replaced with a sandboxed iframe rendering the fence body.
-2. **Media-URL path** — `<img src>` / `<a href>` pointing at media files (`.mp4`/`.webm`/`.mov`/`.mp3`/`.m4a`/`.ogg`) are replaced with `<video>` / `<audio>` elements inline (no iframe — non-executable media tags). Skips `github.com/user-attachments/*` which GitHub already inlines.
+Two independent rewrite paths:
+
+1. **Fence path** — fenced code blocks tagged `x-html` are replaced with a sandboxed iframe rendering the fence body. The iframe is loaded from `chrome-extension://render.html` so the fence escapes GitHub's page CSP. Use this for Playwright reports, status boards, ADR mockups, design comps.
+2. **Media-URL path** — `<img src>` / `<a href>` pointing at media files (`.mp4`/`.webm`/`.mov`/`.mp3`/`.m4a`/`.ogg`) are replaced with `<video controls>` / `<audio controls>` rendered inside a `chrome-extension://render.html` iframe (same CSP-escape trick). Skips `github.com/user-attachments/*` which GitHub already inlines. Use this for bug recordings, demo clips, screen captures hosted on R2 / S3 / anywhere outside `*.githubusercontent.com`.
 
 Both paths are gated by the same trust model: only fences and links inside comments authored by an allowlisted GitHub user get rewritten.
 
@@ -20,8 +25,9 @@ Both paths are gated by the same trust model: only fences and links inside comme
 
 ## What is **not** in scope
 
-- `file://` URL embedding. The original handoff considered rewriting `<a href="file:///tmp/in-html/…">` into iframes, but the new design is **comment-source-only**: the author copies the HTML/Markdown into the fence body. The extension never reads files from the user's filesystem. Threat model collapses to "we render text the comment author already typed."
-- External media link rewriting (`<a href="*.mp4">` → `<video>`). Out of scope for v1; revisit later if needed.
+- `file://` URL embedding. The original handoff considered rewriting `<a href="file:///tmp/in-html/…">` into iframes, but the design is **comment-source-only**: the author copies the HTML / pastes the media URL into the comment. The extension never reads files from the user's filesystem. Threat model collapses to "we render text the comment author already typed."
+- A URL allowlist alongside the author allowlist. Trust is per-author. If you trust an author, you trust their links.
+- Bundling Pico CSS / Tailwind / mermaid into the extension itself. The fence author pulls those from a CDN inside their own HTML if they want them. The extension stays asset-light.
 
 ## Security model
 
