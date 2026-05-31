@@ -6,9 +6,26 @@ All notable changes to this extension are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.11] — 2026-05-30
+
 ### Changed
-- New icon set and Chrome Web Store promo art in `docs/store/`.
-- Repo prepared for public release: refreshed README, packaging script.
+- **New icon.** Refreshed the mark to a play-bracket — `<` `>` code chevrons
+  hugging a glowing cyan play triangle, on a deep indigo→magenta gradient.
+  Reads cleanly all the way down to 16 px. Source stays a hand-authored
+  `icons/icon.svg`; the PNG sizes are rendered from it.
+- **Cohesive store + repo art.** Regenerated the promo tiles
+  (440 × 280, 920 × 680) and the 1400 × 560 marquee in the new style, plus a
+  README hero banner (`docs/store/github-hero.png`) and a 1280 × 640 GitHub
+  social-preview card (`docs/store/github-social.png`).
+- **Public-launch docs.** Added the Chrome Web Store listing copy
+  (`docs/store/listing.md`) and the privacy-policy page text
+  (`docs/store/privacy.md`).
+
+## [0.1.10] — 2026-05-29
+
+### Fixed
+- Decode `camo` proxy URLs and size the media iframe by the video's aspect
+  ratio ([b9ab907]).
 
 ## [0.1.9] — 2026-05-27
 
@@ -42,10 +59,13 @@ All notable changes to this extension are recorded here. The format follows
   signed-in GitHub login on first install.
 - `MutationObserver` re-scan and iframe auto-resize.
 
-[Unreleased]: https://github.com/ninyawee/gh-x-html/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/ninyawee/gh-x-html/compare/v0.1.11...HEAD
+[0.1.11]: https://github.com/ninyawee/gh-x-html/compare/v0.1.10...v0.1.11
+[0.1.10]: https://github.com/ninyawee/gh-x-html/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/ninyawee/gh-x-html/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/ninyawee/gh-x-html/compare/v0.1.0...v0.1.8
 [0.1.0]: https://github.com/ninyawee/gh-x-html/releases/tag/v0.1.0
+[b9ab907]: https://github.com/ninyawee/gh-x-html/commit/b9ab907
 [a2f8e0c]: https://github.com/ninyawee/gh-x-html/commit/a2f8e0c
 [57fcb78]: https://github.com/ninyawee/gh-x-html/commit/57fcb78
 [6b987f3]: https://github.com/ninyawee/gh-x-html/commit/6b987f3

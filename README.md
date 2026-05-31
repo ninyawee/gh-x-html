@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icons/icon-128.png" alt="gh-x-html icon" width="96" height="96" />
+  <img src="docs/store/github-hero.png" alt="gh-x-html — rich HTML, inline video & audio rendered right inside GitHub comments" width="900" />
 </p>
 
 # gh-x-html
