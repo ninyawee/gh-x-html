@@ -186,5 +186,6 @@ Distribution regions: **All regions**. No region-specific behavior.
 | Small promo tile (440 × 280) | `docs/store/promo-small-440x280.png` | required |
 | Large promo tile (920 × 680) | `docs/store/promo-large-920x680.png` | recommended |
 | Marquee (1400 × 560) | `docs/store/promo-marquee-1400x560.png` | required only for featured |
-| Screenshot 1 (1280 × 800) | `docs/store/screenshot-1-before-after.png` | the before/after of Q2 dashboard rendering |
-| Screenshot 2 (1280 × 800) | `docs/store/screenshot-2-hero.png` | hero |
+| Screenshot 1 (1280 × 800) | `docs/store/screenshot-1-before-after.png` | **real capture** — same comment, raw source → rendered dashboard |
+| Screenshot 2 (1280 × 800) | `docs/store/screenshot-2-dashboard.png` | **real capture** — the live Q2 dashboard rendered inline in issue #4 |
+| Screenshot 3 (1280 × 800) | `docs/store/screenshot-3-video.png` | **real capture** — third-party `.mp4` playing inline as `<video controls>` |

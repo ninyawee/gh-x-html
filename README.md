@@ -18,7 +18,7 @@ A Chrome extension that rewrites two things inside GitHub issue / PR / discussio
 1. **Fenced code blocks tagged `x-html`** become a sandboxed iframe that renders the HTML inside.
 2. **Media links** (`.mp4`, `.webm`, `.mov`, `.mp3`, `.m4a`, `.ogg`) become inline `<video>` / `<audio>` players — works for `![](...)`, `[caption](...)`, and bare URLs.
 
-![Before and after — a fenced x-html block becomes a live chart + video card](docs/store/screenshot-1-before-after.png)
+![Before and after — the same GitHub comment with a fenced x-html block: raw source on the left, a live interactive dashboard rendered inline on the right](docs/store/screenshot-1-before-after.png)
 
 ## Install
 
