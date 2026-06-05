@@ -5,8 +5,9 @@
 # gh-x-html
 
 <p align="center">
+  <a href="https://chromewebstore.google.com/detail/gh-x-html/ibmlgnkgaljnihdhpkgdlhklopilkjfk"><img src="https://img.shields.io/chrome-web-store/v/ibmlgnkgaljnihdhpkgdlhklopilkjfk?label=Chrome%20Web%20Store&color=4285F4&logo=googlechrome&logoColor=white" alt="Chrome Web Store" /></a>
+  <a href="https://chromewebstore.google.com/detail/gh-x-html/ibmlgnkgaljnihdhpkgdlhklopilkjfk"><img src="https://img.shields.io/chrome-web-store/users/ibmlgnkgaljnihdhpkgdlhklopilkjfk?label=users&color=4285F4" alt="Users" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/ninyawee/gh-x-html.svg" alt="License: MIT" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/ninyawee/gh-x-html?label=version" alt="Version" /></a>
   <img src="https://img.shields.io/badge/manifest-v3-0969da" alt="Manifest V3" />
   <img src="https://img.shields.io/badge/build-vanilla%20JS-22c55e" alt="No build step" />
 </p>
@@ -24,9 +25,13 @@ A Chrome extension that rewrites two things inside GitHub issue / PR / discussio
 
 ### From the Chrome Web Store
 
-_Coming soon — listing in review._
+**[➕ Install gh-x-html from the Chrome Web Store](https://chromewebstore.google.com/detail/gh-x-html/ibmlgnkgaljnihdhpkgdlhklopilkjfk)**
 
-### From source (today)
+Click **Add to Chrome**, then open any GitHub page. On install you're seeded as
+the lone trusted author — open the popup to add coworkers. Works in Chrome, Edge,
+Brave, Arc, and Vivaldi.
+
+### From source (for development)
 
 1. Clone or download this repo.
 2. Open `chrome://extensions` in Chrome / Edge / Brave / Arc / Vivaldi.

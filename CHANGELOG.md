@@ -8,6 +8,9 @@ All notable changes to this extension are recorded here. The format follows
 
 ## [0.1.11] — 2026-05-30
 
+First public release on the
+[Chrome Web Store](https://chromewebstore.google.com/detail/gh-x-html/ibmlgnkgaljnihdhpkgdlhklopilkjfk).
+
 ### Changed
 - **New icon.** Refreshed the mark to a play-bracket — `<` `>` code chevrons
   hugging a glowing cyan play triangle, on a deep indigo→magenta gradient.
