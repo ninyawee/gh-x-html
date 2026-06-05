@@ -1,7 +1,9 @@
-# Chrome Web Store listing — gh-x-html v0.1.10
+# Chrome Web Store listing — gh-x-html v0.1.11
 
-Draft copy for the Chrome Web Store developer dashboard. All fields below are
-sized against the CWS limits as of 2026-05.
+**Published:** https://chromewebstore.google.com/detail/gh-x-html/ibmlgnkgaljnihdhpkgdlhklopilkjfk
+
+The copy that shipped to the Chrome Web Store developer dashboard. All fields
+below are sized against the CWS limits as of 2026-05.
 
 ---
 
