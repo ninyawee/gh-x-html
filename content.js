@@ -105,6 +105,12 @@
     const fromAttr = el.getAttribute("data-author-login");
     if (fromAttr) return fromAttr.trim();
     const url = el.getAttribute("data-hovercard-url") || el.getAttribute("href") || "";
+    // GitHub App bots (e.g. claude[bot]) link to /apps/<slug>, not /<user>.
+    // Key them by their canonical "<slug>[bot]" login so each bot can be
+    // allowlisted individually. Without this the generic regex below captures
+    // the literal "apps", collapsing every distinct app bot into one trust key.
+    const app = url.match(/^(?:https?:\/\/github\.com)?\/apps\/([A-Za-z0-9-]+)/);
+    if (app) return `${app[1]}[bot]`;
     const m = url.match(/^(?:https?:\/\/github\.com)?\/(?:users\/)?([A-Za-z0-9-]+)(?:\/|$)/);
     if (m) return m[1];
     const t = el.textContent?.trim();
