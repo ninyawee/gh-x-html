@@ -4,7 +4,10 @@
 //   1. the x-html fence got rewritten into a sandboxed iframe, and
 //   2. synthetic .mp4 <img> / <a> injected into a .markdown-body get
 //      rewritten into <video controls> wrapped in a single span (NO
-//      runaway re-wrapping of the fallback anchor).
+//      runaway re-wrapping of the fallback anchor), and
+//   3. a GitHub App bot author (header link href="/apps/<slug>") resolves
+//      to "<slug>[bot]" — NOT the literal "apps" — so trusting "claude[bot]"
+//      (and not "apps") is what unlocks the bot's fence.
 //
 // Usage:
 //   bunx --bun playwright install chromium   (once)
@@ -331,6 +334,94 @@ if (sizingSummary.error) {
   exitCode = 1;
 } else {
   console.error(`PASS: sizing — iframe aspect-ratio=${sizingSummary.aspectRatio} max-width=${sizingSummary.maxWidth}`);
+}
+
+// ---- GitHub App bot author check ( /apps/<slug> -> "<slug>[bot]" ) ----
+// Inject a synthetic legacy comment authored by the "claude" GitHub App: a
+// header link <a class="author" href="/apps/claude"> plus an x-html fence in
+// the body. Pre-fix, extractLogin() captured the literal "apps" from that
+// href, so trusting "apps" would (wrongly) render every app bot's fence.
+// Post-fix it yields "claude[bot]". We prove the fix by toggling the allowlist:
+//   - trust "apps"        -> fence must NOT render (author is "claude[bot]")
+//   - trust "claude[bot]" -> fence MUST render, sandboxed, no allow-same-origin
+await page.evaluate(() => {
+  const wrap = document.createElement("div");
+  wrap.className = "timeline-comment";
+  wrap.id = "ghxhtml-bot-container";
+
+  // Author link in the comment header chrome — deliberately OUTSIDE
+  // .markdown-body so it passes the body-exclusion security filter.
+  const author = document.createElement("a");
+  author.className = "author";
+  author.setAttribute("href", "/apps/claude");
+  author.textContent = "claude";
+
+  const body = document.createElement("div");
+  body.className = "markdown-body";
+  const pre = document.createElement("pre");
+  pre.setAttribute("lang", "x-html");
+  const code = document.createElement("code");
+  code.textContent = "<!doctype html><h1 id=bot-fence>bot fence</h1>";
+  pre.appendChild(code);
+  body.appendChild(pre);
+
+  wrap.appendChild(author);
+  wrap.appendChild(body);
+  document.body.appendChild(wrap);
+});
+
+// Trust the pre-fix login "apps". The storage change clears APPLIED + rescans.
+await sw.evaluate(async () => {
+  await chrome.storage.sync.set({ trustedAuthors: ["ninyawee", "apps"] });
+});
+await page.waitForTimeout(900);
+const botApps = await page.evaluate(() => {
+  const c = document.getElementById("ghxhtml-bot-container");
+  return {
+    iframeCount: c?.querySelectorAll("iframe[data-gh-x-html='fence']").length ?? -1,
+    preApplied: c?.querySelector('pre[lang="x-html"]')?.getAttribute("data-gh-x-html-applied") ?? null,
+  };
+});
+
+// Trust the post-fix login "claude[bot]". Now the fence should mount.
+await sw.evaluate(async () => {
+  await chrome.storage.sync.set({ trustedAuthors: ["ninyawee", "claude[bot]"] });
+});
+await page
+  .waitForSelector("#ghxhtml-bot-container iframe[data-gh-x-html='fence']", { timeout: 5_000 })
+  .catch(() => null);
+const botBot = await page.evaluate(() => {
+  const c = document.getElementById("ghxhtml-bot-container");
+  const ifr = c?.querySelector("iframe[data-gh-x-html='fence']");
+  return {
+    iframeCount: c?.querySelectorAll("iframe[data-gh-x-html='fence']").length ?? -1,
+    sandbox: ifr?.getAttribute("sandbox") ?? null,
+    src: ifr?.src ?? null,
+  };
+});
+
+console.log("bot-author:", JSON.stringify({ botApps, botBot }, null, 2));
+
+if (botApps.iframeCount !== 0) {
+  console.error(
+    `\nFAIL: bot-author — fence rendered while only "apps" was trusted; the bot login regressed to "apps" (got ${botApps.iframeCount} iframes)`,
+  );
+  exitCode = 1;
+} else if (botBot.iframeCount !== 1) {
+  console.error(
+    `\nFAIL: bot-author — expected 1 fence iframe after trusting "claude[bot]", got ${botBot.iframeCount}`,
+  );
+  exitCode = 1;
+} else if ((botBot.sandbox || "").includes("allow-same-origin")) {
+  console.error("\nFAIL: bot-author — iframe carries allow-same-origin (sandbox escape!)");
+  exitCode = 1;
+} else if (!(botBot.sandbox || "").includes("allow-scripts")) {
+  console.error("\nFAIL: bot-author — iframe missing allow-scripts");
+  exitCode = 1;
+} else {
+  console.error(
+    'PASS: bot-author — /apps/claude resolves to "claude[bot]" (not "apps"); fence renders only when the bot login is trusted',
+  );
 }
 
 // Screenshot the iframe area for visual confirmation.
