@@ -25,3 +25,6 @@ docs/store/icon-flat-1024.png
 docs/store/icon-master.png
 docs/store/icon-square.png
 docs/store/icon-128-flat.png
+
+# fnox machine-local secrets (never commit)
+fnox.local.toml

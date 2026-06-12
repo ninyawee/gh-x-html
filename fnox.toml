@@ -1,0 +1,5 @@
+[providers.age]
+type = "age"
+recipients = ["age1jqy4r7lltng327m9wzwtrwcd9pkjpveafmv8cjhv2tymdmcg93vqrc3y4j"]
+
+[secrets]
