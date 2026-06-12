@@ -6,6 +6,15 @@ All notable changes to this extension are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.12] — 2026-06-12
+
+### Fixed
+- **Render `x-html` fences and media from GitHub App bots** (e.g. the
+  `claude[bot]` CI reviewer). A bot's author link is `/apps/<slug>`, which the
+  author detector previously read as the literal `apps`; it now resolves to the
+  canonical `<slug>[bot]` login, so each bot can be added to the trusted-authors
+  allowlist individually (add `claude[bot]` to render Claude's review fences).
+
 ## [0.1.11] — 2026-05-30
 
 First public release on the
