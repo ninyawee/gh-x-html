@@ -1,0 +1,106 @@
+name: Release
+
+# Cut a release when a vX.Y.Z tag is pushed (matches the repo's existing tag
+# convention). The pipeline:
+#   1. verifies manifest.json version == the tag,
+#   2. pulls the matching CHANGELOG.md section for the release notes,
+#   3. builds dist/gh-x-html-<version>.zip,
+#   4. creates a GitHub Release with that zip attached,
+#   5. uploads & auto-publishes the zip to the Chrome Web Store.
+#
+# Release flow for a maintainer:
+#   bump manifest.json + finalize CHANGELOG -> commit -> `git tag vX.Y.Z` -> push tag.
+#
+# Chrome Web Store auth (set once in repo settings):
+#   Secrets:   CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN
+#   Variable:  CWS_EXTENSION_ID  (optional — defaults to the published listing ID)
+# If the secrets are absent the GitHub Release still ships and the publish step
+# is skipped with a warning, so this never hard-fails before auth is wired up.
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: write # create the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Job-level env so the publish step's `if:` can read CLIENT_ID — a step's
+    # own env block is not in scope for that same step's `if` conditional.
+    env:
+      EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID || 'ibmlgnkgaljnihdhpkgdlhklopilkjfk' }}
+      CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+      CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+      REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Resolve version from tag
+        id: v
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$TAG' is not a vX.Y.Z release tag."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "zip=dist/gh-x-html-${version}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Verify manifest.json version matches the tag
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          manifest=$(node -p "require('./manifest.json').version")
+          if [ "$manifest" != "$VERSION" ]; then
+            echo "::error::manifest.json version ($manifest) does not match tag ($VERSION). Bump the manifest before tagging."
+            exit 1
+          fi
+          echo "manifest.json version $manifest matches tag."
+
+      - name: Extract release notes from CHANGELOG
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          ./scripts/extract-changelog.sh "$VERSION" > release-notes.md
+          if [ ! -s release-notes.md ] || ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION]' section. Add the entry before tagging."
+            exit 1
+          fi
+          echo "Release notes:"; cat release-notes.md
+
+      - name: Build the upload zip
+        run: ./scripts/build-zip.sh
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.v.outputs.version }}
+          ZIP: ${{ steps.v.outputs.zip }}
+        run: |
+          gh release create "$TAG" "$ZIP" \
+            --title "v${VERSION}" \
+            --notes-file release-notes.md
+
+      # EXTENSION_ID / CLIENT_ID / CLIENT_SECRET / REFRESH_TOKEN are inherited
+      # from the job-level env above; chrome-webstore-upload-cli reads them.
+      - name: Publish to Chrome Web Store
+        if: ${{ env.CLIENT_ID != '' }}
+        env:
+          ZIP: ${{ steps.v.outputs.zip }}
+        run: |
+          npx --yes chrome-webstore-upload-cli@3 upload \
+            --source "$ZIP" \
+            --auto-publish
+
+      - name: Note skipped Web Store publish
+        if: ${{ env.CLIENT_ID == '' }}
+        run: echo "::warning::Chrome Web Store publish skipped — set CWS_CLIENT_ID, CWS_CLIENT_SECRET and CWS_REFRESH_TOKEN secrets to enable auto-publish."

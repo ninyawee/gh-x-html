@@ -1,0 +1,48 @@
+name: CI
+
+# Lightweight validation on every PR and push to main. Keeps the release
+# pipeline honest: if the package can't be built or a script has a syntax
+# error, we find out here rather than at tag time.
+#
+# The Playwright smoke test (bun smoke-test.mjs) is intentionally NOT run here —
+# it launches a headed Chromium against live github.com, which is too heavy and
+# flaky to gate every PR. Run it locally before tagging a release.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: manifest.json is valid JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))"
+
+      - name: Syntax-check extension scripts
+        run: |
+          for f in background.js content.js render.js popup.js; do
+            node --check "$f"
+          done
+
+      - name: Build the upload zip (packaging smoke)
+        run: ./scripts/build-zip.sh
+
+      - name: CHANGELOG has a section for the manifest version
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          if grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "CHANGELOG.md documents $version."
+          else
+            echo "::warning::No '## [$version]' section in CHANGELOG.md yet — fine while it sits under [Unreleased], required before tagging v$version."
+          fi
