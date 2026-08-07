@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+#MISE description="Build the Safari (macOS) extension app via the Xcode wrapper"
+#USAGE flag "--install" help="Install to /Applications, register, and launch"
+# See docs/adr/0004-safari-via-generated-xcode-wrapper.md for why each step is shaped this way.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+APP_NAME="gh-x-html"
+BUNDLE_ID="dev.ninyawee.gh-x-html"
+PROJECT_DIR="dist/safari"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister
+
+[[ "$(uname -s)" == "Darwin" ]] || { echo "safari: macOS only" >&2; exit 1; }
+
+# CommandLineTools has no safari-web-extension-converter. Point at Xcode for this
+# process only, rather than a machine-wide `sudo xcode-select -s`.
+if [[ -d /Applications/Xcode.app ]]; then
+  export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+fi
+xcrun --find safari-web-extension-converter >/dev/null 2>&1 \
+  || { echo "safari: needs full Xcode (not just Command Line Tools)" >&2; exit 1; }
+
+# Stage the runtime files OUTSIDE the repo. The converter's --copy-resources will
+# recurse into its own output if the project location sits inside the source dir,
+# copying until the path blows past NAME_MAX. Same file list as scripts/build-zip.sh.
+STAGE=$(mktemp -d)
+trap 'rm -rf "$STAGE"' EXIT
+cp manifest.json background.js content.js render.html render.js popup.html popup.js LICENSE "$STAGE"/
+mkdir -p "$STAGE/icons"
+cp icons/*.png "$STAGE/icons"/
+
+rm -rf "$PROJECT_DIR"
+mkdir -p "$PROJECT_DIR"
+xcrun safari-web-extension-converter \
+  --macos-only --no-open --no-prompt --force --copy-resources \
+  --app-name "$APP_NAME" --bundle-identifier "$BUNDLE_ID" \
+  --project-location "$PROJECT_DIR" "$STAGE"
+
+# CODE_SIGN_IDENTITY="-" gives a real ad-hoc signature. Do NOT use
+# CODE_SIGNING_ALLOWED=NO (linker-signed, wrong identifier) and do NOT override
+# PRODUCT_BUNDLE_IDENTIFIER here — it would apply to both targets and collapse the
+# app and its appex onto one ID, which makes Safari silently refuse to list it.
+BUILT="$PROJECT_DIR/$APP_NAME/build/Build/Products/Release/$APP_NAME.app"
+( cd "$PROJECT_DIR/$APP_NAME" \
+  && xcodebuild -scheme "$APP_NAME" -configuration Release -derivedDataPath build \
+       CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual build >/dev/null )
+
+codesign --verify --deep --strict "$BUILT"
+app_id=$(defaults read "$PWD/$BUILT/Contents/Info.plist" CFBundleIdentifier)
+ext_id=$(defaults read "$PWD/$BUILT/Contents/PlugIns/$APP_NAME Extension.appex/Contents/Info.plist" CFBundleIdentifier)
+[[ "$app_id" != "$ext_id" ]] || { echo "safari: app and appex share bundle id '$app_id'" >&2; exit 1; }
+
+echo "built $BUILT ($app_id + $ext_id)"
+
+if [[ "${usage_install:-false}" == "true" ]]; then
+  rm -rf "/Applications/$APP_NAME.app"
+  cp -R "$BUILT" /Applications/
+  # Building registers the DerivedData copy too, so Safari lists the extension
+  # twice. Drop that registration and keep /Applications as the only one.
+  "$LSREGISTER" -u "$PWD/$BUILT" 2>/dev/null || true
+  "$LSREGISTER" -f "/Applications/$APP_NAME.app"
+  open -a "/Applications/$APP_NAME.app"
+  echo "installed to /Applications and launched"
+  echo "Safari: Settings > Advanced > 'Show features for web developers',"
+  echo "        Develop > 'Allow Unsigned Extensions' (resets each Safari restart),"
+  echo "        Settings > Extensions > enable gh-x-html, set github.com to Allow."
+fi

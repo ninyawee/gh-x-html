@@ -1,0 +1,6 @@
+# Task runner config. Tasks longer than a few lines live in mise-tasks/.
+# The extension itself stays zero-build — these tasks only wrap packaging.
+
+[tasks.zip]
+description = "Pack the extension into dist/gh-x-html-<version>.zip for the Chrome Web Store"
+run = "./scripts/build-zip.sh"
